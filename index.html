@@ -1,0 +1,27 @@
+<!ODCTYPE html>
+<html>
+<head>
+	<title>Chain Reaction</title>
+</head>
+<body>
+<div class="title"></div>
+<div id="arena"></div>
+
+<!-- main game script -->
+<script type="text/javascript">
+window.onload = function()
+{
+	var game = new ChainReaction(
+		50,
+		10,
+		['red','green','blue','yellow','magenta','cyan']
+	);
+
+	game.loadGame();
+};
+</script>
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/kinetic.js"></script>
+<script type="text/javascript" src="js/chain-reaction.js"></script>
+</body>
+</html>
