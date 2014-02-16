@@ -1,5 +1,4 @@
-<h2>Chain Reaction</h2>
+Chain Reaction
+==============
 
-<blockquote>
 A Game to play - Made using HTML5 canvas and Kinetic.js, A Canvas Framework 
-</blockquote>
