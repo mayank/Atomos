@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Chain Reaction</title>
+	
+	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<script src="js/jquery.min.js"></script>
+	<script src="js/kinetic.js"></script>
+	<script src="js/chain-reaction.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+
+	<script type="text/javascript">
+	function userLoggedIn()
+	{
+		// hide login form
+		FB.api('/me', function(data)
+		{
+			$('#username').remove();
+			$('#game').removeClass('hide');
+
+			startExploring(data);
+		});
+	}
+
+	function startExploring(data) 
+	{
+		var socket = io();
+		var cr = new ChainReaction(30,6);
+		var bizz = ['red','blue','green','yellow','pink','orange'];
+
+		socket.emit('add-username', data);
+		socket.on('status',status);
+
+		socket.on('game-list',function(data){
+			for(var i=0;i<data.length;i++)
+			{
+				$('<option/>', {  
+					value: data[i].id,
+					text: data[i].owner.name 
+				}).appendTo('#pre-game');
+			}
+		});
+
+		socket.on('start-game', function(game){
+			colors = bizz.slice(0, game.players.length);
+			cr.setColors(colors);
+			cr.loadGame();
+		});
+
+		
+		socket.on('unlock', function(data){
+			cr.clickable = true;
+		});
+
+		socket.on('move',function(data){
+			cr.placeMyAtom(data.x, data.y, false);
+		});
+
+		cr.atomCallback = function(x,y,color) {
+			cr.clickable = false;
+			socket.emit('turn',{x:x, y:y, color:color});
+		};
+
+		$('#create-game').click(function(){
+			var players = $('#players').val();
+			if( players != null )
+			{
+				socket.emit('create-game', players);
+				// game created
+				$('#game').remove();
+			}
+		});
+
+
+		$('#join-game').click(function(){
+			var id = $('#pre-game').val();
+			if( id != null )
+			{
+				socket.emit('join-game', id);
+				// game joined
+				$('#game').remove();
+			}
+		});
+	}
+
+	function status(msg)
+	{
+		$('.status').html(msg);
+	}
+	</script>
+
+	<!-- facebook login script -->
+	<script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId      : '1440327442896903',
+          xfbml      : true,
+          version    : 'v2.0'
+        });
+
+        FB.getLoginStatus(function(data) 
+        {
+        	if( data.status != 'connected' ) 
+        	{
+        		$('#login').click(function() 
+        		{
+        			FB.login(function(user)
+        			{
+        				if( user.status == 'connected' )
+        				{
+        					userLoggedIn();
+        				}
+        			});
+        		});
+        	}
+        	else
+        	{
+        		userLoggedIn();
+        	}
+        });
+
+      };
+
+      (function(d, s, id){
+         var js, fjs = d.getElementsByTagName(s)[0];
+         if (d.getElementById(id)) {return;}
+         js = d.createElement(s); js.id = id;
+         js.src = "//connect.facebook.net/en_US/sdk.js";
+         fjs.parentNode.insertBefore(js, fjs);
+       }(document, 'script', 'facebook-jssdk'));
+    </script>
+
+</head>
+<body>
+	<h1 class="text-center">Chain Reaction</h1>
+	<div class="container">
+		<div class="col-md-4 col-md-offset-4">
+			
+			<div class="status alert alert-warning"></div>
+
+			<div id="username" class="form">
+				<button id="login" class="btn btn-primary btn-block">Login with Facebook</button>
+			</div>
+
+			<div id="game" class="form hide">
+				<div class="form-group input-group">
+					<select id="players" class="form-control">
+						<option disabled selected>Choose No of Players</option>
+						<option value="2">2 Players</option>
+						<option value="4">4 Players</option>
+						<option value="6">6 Players</option>
+					</select>
+					<div class="input-group-btn">
+						<button id="create-game" class="btn btn-success btn-block">Create</button>
+					</div>
+				</div>
+
+				
+
+				<p class="text-center">OR</p>
+
+				<div class="form-group input-group">
+					<select id="pre-game" class="form-control">
+						<option disabled selected>Choose Any Game</option>
+					</select>
+					<div class="input-group-btn">
+						<button id="join-game" class="btn btn-primary btn-block">Join</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="text-center">
+			<div id="arena"></div>
+		</div>
+</div>
+</body>
+</html>

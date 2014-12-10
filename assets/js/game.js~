@@ -1,0 +1,32 @@
+function Game(socket) {
+	
+	var cr = new ChainReaction(40,8,['red','green']);
+
+	cr.atomCallback = function(x,y,color) {
+		cr.clickable = false;
+		socket.emit('turn',{x:x, y:y, color:color});
+	};
+
+	socket.on('clear-console',function(data){
+		$('#console').html('');
+	});
+
+	socket.on('console', function(msg){
+		var loose = $('#console');
+		$(loose).html($(loose).html()+msg+'\n');
+	});
+
+	socket.on('start-game', function(data){
+		cr.loadGame();
+	});
+
+	socket.on('move',function(data){
+		cr.placeMyAtom(data.x, data.y, false);
+	});
+
+	socket.on('unlock', function(data){
+		cr.clickable = true;
+	});
+
+}
+

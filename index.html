@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Chain Reaction</title>
+	
+	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+	
+	<script type="text/javascript" src="js/jquery.min.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	
+	<script type="text/javascript">
+	$(document).ready(function(){
+		$('#go').click(function(){
+			var val = $('#uid').val();
+			console.log(val);
+			
+			var socket = io();
+		});
+	});
+	</script>
+</head>
+<body>
+
+	<div class="col-md-4 col-md-offset-4">
+		
+		<h3 class="text-center">Chain Reaction</h3>
+		<hr>
+		
+		<div class="input-group">
+		 	<span class="input-group-addon">Enter Username</span>
+			<input type="text" id="uid" class="form-control">
+			<span class="input-group-btn">
+				<button id="go" class="btn btn-success">Go !</button>
+			</span>
+		</div>
+	</div>
+</body>
+</html>
