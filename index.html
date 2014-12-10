@@ -1,38 +1,27 @@
-<!DOCTYPE html>
+<!ODCTYPE html>
 <html>
 <head>
 	<title>Chain Reaction</title>
-	
-	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
-	
-	<script type="text/javascript" src="js/jquery.min.js"></script>
-	<script src="/socket.io/socket.io.js"></script>
-	
-	<script type="text/javascript">
-	$(document).ready(function(){
-		$('#go').click(function(){
-			var val = $('#uid').val();
-			console.log(val);
-			
-			var socket = io();
-		});
-	});
-	</script>
 </head>
 <body>
+<div class="title"></div>
+<div id="arena"></div>
 
-	<div class="col-md-4 col-md-offset-4">
-		
-		<h3 class="text-center">Chain Reaction</h3>
-		<hr>
-		
-		<div class="input-group">
-		 	<span class="input-group-addon">Enter Username</span>
-			<input type="text" id="uid" class="form-control">
-			<span class="input-group-btn">
-				<button id="go" class="btn btn-success">Go !</button>
-			</span>
-		</div>
-	</div>
+<!-- main game script -->
+<script type="text/javascript">
+window.onload = function()
+{
+	var game = new ChainReaction(
+		50,
+		10,
+		['red','green','blue','yellow','magenta','cyan']
+	);
+
+	game.loadGame();
+};
+</script>
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/kinetic.js"></script>
+<script type="text/javascript" src="js/chain-reaction.js"></script>
 </body>
 </html>
