@@ -4,7 +4,7 @@
   "description": "a online game",
   "dependencies": {
     "express": "4.4.5",
-    "ejs": "1.0.0",
+    "ejs": "2.5.8",
     "socket.io": "1.0.6"
   },
   "subdomain": "chain-reaction",
