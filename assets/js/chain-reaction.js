@@ -120,7 +120,7 @@ function ChainReaction(_boxsize, _gridcount){
 			board[x][y]['atoms'][0].getFill() == color 	// if color is same
 		) {
 			addNewAtom( x, y, color );
-			if( callback == true )
+			if( callback == true && typeof _this.atomCallback == 'function')
 			{
 				_this.atomCallback( x, y, color );
 			}

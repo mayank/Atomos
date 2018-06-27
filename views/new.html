@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Chain Reaction</title>
+	
+	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<script src="js/jquery.min.js"></script>
+	<script src="js/kinetic.js"></script>
+	<script src="js/chain-reaction.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+
+	<script type="text/javascript">
+	</script>
+
+	<!-- facebook login script -->
+	<script>
+		window.fbAsyncInit = function() {
+			FB.init({
+				appId      : '1440327442896903',
+				xfbml      : true,
+				version    : 'v2.0'
+			});
+		};
+
+		(function(d, s, id){
+			var js, fjs = d.getElementsByTagName(s)[0];
+			if (d.getElementById(id)) {return;}
+			js = d.createElement(s); js.id = id;
+			js.src = "//connect.facebook.net/en_US/sdk.js";
+			fjs.parentNode.insertBefore(js, fjs);
+		}(document, 'script', 'facebook-jssdk'));
+
+
+		$(document).ready(function(){
+			$('#login').click(function(){
+				FB.getLoginStatus(function(data) {
+					if( data.status != 'connected' ) {
+						FB.login(function(user){
+							if( user.status == 'connected' ){
+								userLoggedIn();
+							}
+						});
+					}
+					else {
+						userLoggedIn();
+					}
+				});
+			});
+		});
+
+		function setStatus(data){
+			if(window.statusTimer){
+				clearTimeout(window.statusTimer);
+				window.statusTimer = null;
+			}
+
+			$('#status').html(data.message).removeClass('hide');
+			window.statusTimer = setTimeout(function(){
+				$('#status').addClass('hide');
+			}, data.time || 5000);
+			console.log('showing message ' + data.message + ' upto ' + data.time);
+		}
+
+		function userLoggedIn(){
+			FB.api('/me', function(data){
+				window.user = data;
+				$('#login').remove();
+				$('#game-block').removeClass('hide');
+				init();
+			});
+		}
+
+		function init(){
+			var socket = io();
+			var cr = new ChainReaction(30,6);
+			var bizz = ['red','blue','green','yellow','pink','orange'];
+
+			cr.atomCallback = function(x,y){
+				socket.emit('/game/turn', {game:window.gameId, x:x, y:y});
+			};
+			socket.emit('/user/add', window.user);
+			socket.on('/status', function(data){
+				setStatus(data);
+			});
+		
+			socket.on('/action', function(data){
+				switch(data.action){
+					case 'user-added':
+						console.log('activateGamingMode');
+						activateGamingMode(socket);
+					break;
+
+					case 'game-created':
+						window.gameId = data.gameId;
+						console.log('Wait for players to join', window.gameId);
+						waitForPlayers(socket);
+					break;
+
+					case 'player-added':
+						$('#player-list').children('li:not(.disabled)').remove();
+						data.players.forEach(function(player){
+							var html = '<li class="list-group-item">'+player+'</li>'
+							$('#player-list').append(html);
+						});
+					break;
+
+					case 'game-joined':
+						window.gameId = data.gameId;
+						gameJoined();
+					break;
+
+					case 'enable-start':
+						$('#start-game-block').removeClass('hide');
+						startGame(socket);
+					break;
+
+					case 'game-started':
+						loadGame(cr, bizz, data.count);
+					break;
+					case 'your-turn':
+						yourTurn(cr);
+					break;
+
+					case 'wait-for-turn':
+						waitForTurn(cr);
+					break;
+
+					case 'move':
+						cr.placeMyAtom(data.x, data.y);
+					break;
+				}
+			});
+		}
+
+		function yourTurn(cr) {
+			cr.clickable = true;
+		}
+
+		function waitForTurn(cr){
+			cr.clickable = false;
+		}
+
+		function loadGame(cr, bizz, count){
+			$('#remove-all-this-when-game-starts').remove();
+			var colors = bizz.slice(0, count);
+			cr.setColors(colors);
+			cr.loadGame();
+		}
+
+		function startGame(socket){
+			$('#start-game').click(function(){
+				socket.emit('/game/start', window.gameId);
+			});
+		}
+
+		function gameJoined(){
+			$('#or').remove();
+			$('#create-game-block').remove();
+			$('#join-game-block').remove();
+			$('#player-list').removeClass('hide');
+		}
+
+
+		function waitForPlayers(socket) {
+			$('#or').remove();
+			$('#create-game').remove();
+			$('#join-game-block').remove();
+			$('#player-list').removeClass('hide');
+		}
+		function activateGamingMode(socket) {
+			$('#create-game').click(function(){
+				socket.emit('/game/create');
+			});
+
+			$('#join-game').click(function(){
+				var gameId = $('#game-id').val();
+				socket.emit('/game/join', gameId);
+			});
+		}
+</script>
+
+</head>
+<body>
+	<h1 class="text-center">Chain Reaction</h1>
+	<div class="container">
+		<div class="col-md-4 col-md-offset-4">
+
+			<div id="status" class="alert alert-warning hide"></div>
+
+			<div id="remove-all-this-when-game-starts">
+				<div id="username" class="form">
+					<button id="login" class="btn btn-primary btn-block">Login with Facebook</button>
+				</div>
+
+				<div class="hide" id="game-block">
+
+					<div id="create-game-block" class="form">
+						<button id="create-game" class="btn btn-success btn-block">Create new Game</button>
+					</div>
+
+					<p id="or" class="text-center">OR</p>
+
+					<div id="join-game-block" class="form-group input-group">
+						<input id="game-id" class="form-control" placeholder="Add Code Here" />
+						<div class="input-group-btn">
+							<button id="join-game" class="btn btn-primary btn-block">Join Game</button>
+						</div>
+					</div>
+
+				</div>
+
+				<ul id="player-list" class="list-group hide">
+					<li class="list-group-item disabled">Players Joined</li>
+				</ul>
+
+				<div id="start-game-block" class="hide form">
+					<p></p>
+					<button id="start-game" class="btn btn-warning btn-block">Start Game</button>
+				</div>
+			</div>
+
+			<div class="text-center">
+				<div id="arena"></div>
+			</div>
+		</div>
+	</body>
+	</html>

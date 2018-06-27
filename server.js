@@ -10,7 +10,7 @@ app.set('views', __dirname + '/views');
 app.set('view engine', 'html');
 
 app.get('/', function(req, res){
-  res.render('index');
+  res.render('new');
 });
 
 http.listen(3000, function(){
@@ -19,8 +19,13 @@ http.listen(3000, function(){
 
 
 /* code for game */
-var _users = [];
-var _games = [];
+var _users = {};
+var _games = {};
+var _sockets = {};
+
+var generateGameId = function(){
+	return Math.floor(1000 + Math.random() * 9000);
+};
 
 // when user connects to the game
 io.on('connection', function(socket){ 
@@ -29,78 +34,114 @@ io.on('connection', function(socket){
 	var __game = null;
 
 	// adds a user
-	socket.on('add-username', function(user) {
+	socket.on('/user/add', function(user) {
 		
-		__username = {
-			id: user.id,
-			name: user.name
-		};
+		_users[user.id] = socket;
+		_sockets[socket.id] = user;
 
-		_users[__username.id] = socket;
-		socket.emit('status','Welcome ! '+ __username.name);
-
-		socket.emit('user-added');
-		socket.emit('game-list', _games);
+		socket.emit('/status',{ message: 'Welcome ! '+ user.name});
+		socket.emit('/action', {action:'user-added'});
+		console.log('Adding New User', JSON.stringify(user));
 	});
 
-	// creates a new game
-	socket.on('create-game',function(max) {
-		
-		__game = {
-			id: Date.now(),
-			owner: __username,
-			players: [__username],
-			max: max,
-			turns: 0
+
+	socket.on('/game/create', function(){
+		var userId = _sockets[socket.id].id;
+		var name = _sockets[socket.id].name;
+		var gameId = generateGameId();
+
+		var game = {
+			id: gameId,
+			owner: userId,
+			players: [userId],
+			playerNames: [name],
+			turns: 0,
+			started: false
 		};
 
-		_games.push(__game);
+		_games[gameId] = game;
 
-		socket.emit('status', 'Waiting for '+ (__game.max - __game.players.length) +' players to join...');
+		console.log('Game Created with Id : '+ gameId);
+		socket.emit('/status', {message: 'Game created, Passcode : ' + gameId, time: 99999999});
+		socket.emit('/action', { action: 'game-created', gameId: gameId});
+		socket.emit('/action', { action: 'player-added', players: game.playerNames});
+	});
+
+	socket.on('/game/start', function(id){
+		var game = _games[id];
+
+		_games[id].started = true;
+		console.log('Admin Started the Game! => ', id);
+
+		game.players.forEach(function(playerId){
+			console.log('Notifying Game start to ', playerId);
+			_users[playerId].emit('/action', { action: 'game-started', count: game.players.length});
+		});
+
+		playNextTurn(id);
+		
 	});
 
 	// join an existing game
-	socket.on('join-game', function(id) {
-		for(var i=0;i<_games.length;i++) 
-		{
-			var game = _games[i];
+	socket.on('/game/join', function(id) {
+		var game = _games[id];
+		var userId = _sockets[socket.id].id;
+		var name = _sockets[socket.id].name;
 
-			if( game.id == id )
-			{
-				__game = game;
-
-				game.players.push(__username);
-
-				if( game.players.length == game.max )
-				{
-					io.sockets.emit('status', 'Game is Started !');
-					io.sockets.emit('start-game', game);
-
-					playNextTurn();
-				}
-				else
-				{
-					io.sockets.emit('status', 'Waiting for '+ (game.max - game.players.length) +' players to join...');
-				}
-				return;
+		if(game){
+			if(game.started) {
+				console.log('Joining Existing Game');
+				socket.emit('/status', {message: 'You cannot join a game that is already started'});
 			}
+			else {
+				game.players.push(userId);
+				game.playerNames.push(name);
+
+				_games[id] = game;
+
+				console.log('Game Joined by User : '+ userId);
+				socket.emit('/status', {message: 'You Joined, Waiting for Admin to start'});
+				socket.emit('/action', {action: 'game-joined', gameId: id});
+
+				game.players.forEach(function(id){
+					_users[id].emit('/action', { action: 'player-added', players: game.playerNames});
+					if(game.owner == id){
+						_users[id].emit('/action', { action: 'enable-start'});
+					}
+				});	
+			}
+		} else {
+			console.log('Game DNE with Id : ', id);
+			socket.emit('/status', { message: 'Game doesnot exists, try creating new one'});
 		}
 	});
 
-	socket.on('turn', function(data) {
-		socket.broadcast.emit('move',data);
-		__game.turns++;
+	socket.on('/game/turn', function(data) {
+		_games[data.game].turns++;
+		var player = _sockets[socket.id].id;
 
-		playNextTurn();
+		_games[data.game].players.forEach(function(playerId){
+			if(player !== playerId){
+				_users[playerId].emit('/action', {action: 'move', x:data.x, y:data.y});		
+			}
+		});
+		
+		playNextTurn(data.game);
 	});
 
-	function playNextTurn() {
+	function playNextTurn(id) {
+		var game = _games[id];
+		var player = game.players[game.turns % game.players.length];
 		
-		var player = __game.players[__game.turns%__game.players.length];
-		
-		_users[player.id].emit('unlock',null);
-		_users[player.id].broadcast.emit('status','player is thinking...');
-		_users[player.id].emit('status','Its your turn !');
+		_users[player].emit('/action', {action:'your-turn'});
+		_users[player].emit('/status',{ message: 'Its your turn !', time: 999999});
+
+		game.players.forEach(function(playerId){
+			if(player !== playerId){
+				_users[playerId].emit('/action', {action: 'wait-for-turn'});
+				_users[playerId].emit('/status', { message: 'Waiting for Player to Move', time: 999999});
+			}
+		});
 	}
 
 	/*
