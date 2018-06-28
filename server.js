@@ -165,7 +165,6 @@ io.on('connection', function(socket){
 		console.log('/game/lose', JSON.stringify(data));
 		console.log('Player ', playerId, ' Lost!');
 		_users[playerId].emit('/status', {message: 'You are out of Game now!', time: 9999999});
-		_users[playerId].emit('/action', {action: 'mark-lost-boy'});
 	});
 
 	function playNextTurn(id) {

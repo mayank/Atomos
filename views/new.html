@@ -80,6 +80,10 @@
 
 			cr.showLoserCallback = function(playerId){
 				cr.clickable = false;
+				var loserCheck = cr.amIALoser();
+				if(loserCheck){
+					cr.skipChanceCallback(loserCheck);
+				}
 				socket.emit('/game/lose', {game:window.gameId, player: playerId});
 			};
 
@@ -146,15 +150,8 @@
 					case 'move':
 						cr.placeMyAtom(data.x, data.y);
 					break;
-
 					case 'game-ended': 
 						$('#reload-page').removeClass('hide');
-					break;
-					case 'mark-lost-boy':
-						var loserCheck = cr.amIALoser();
-						if(loserCheck && cr.clickable){
-							cr.skipChanceCallback(loserCheck);
-						}
 					break;
 					case 'pass':
 						cr.placeMyAtom(0, 0);
