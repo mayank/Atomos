@@ -150,6 +150,10 @@
 					case 'game-ended': 
 						$('#reload-page').removeClass('hide');
 					break;
+
+					case 'pass':
+						cr.placeMyAtom(0, 0);
+					break;
 				}
 			});
 		}

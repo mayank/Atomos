@@ -131,6 +131,11 @@ io.on('connection', function(socket){
 
 	socket.on('/game/pass', function(data){
 		_games[data.game].turns++;
+
+		_games[data.game].players.forEach(function(playerId){
+			_users[playerId].emit('/action', {action: 'pass'});
+		});
+
 		playNextTurn(data.game);
 	});
 
