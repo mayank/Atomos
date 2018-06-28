@@ -18,6 +18,16 @@ function ChainReaction(_boxsize, _gridcount){
 	var players = 0;
 	
 	var wins = new Array();
+
+	var losers = new Array();
+
+	var skipChance = null;
+
+	var showLoser = null;
+
+	var rounds = 0;
+
+	var weHaveAWinner = false;
 	
 	var turns = 0;
 
@@ -37,6 +47,9 @@ function ChainReaction(_boxsize, _gridcount){
 
 	this.clickable = false;
 	this.atomCallback = null;
+	this.skipChanceCallback = null;
+	this.showLoserCallback = null;
+	this.winnerCallback = null;
 
 	this.setColors = function(_colors)
 	{
@@ -51,43 +64,6 @@ function ChainReaction(_boxsize, _gridcount){
 		setWinnersArray();
 	};
 
-	function setWinnersArray() {
-		for(var i=0; i<players; i++) {
-			wins[i] = 1;
-		}
-	}
-	
-	// one time run only
-	function createProgramBoard() {
-		for( var i=0; i<grid_count; i++ ) 
-		{
-			board[i] = new Array();
-			for( var j=0; j<grid_count; j++ ) 
-			{
-				board[i][j] = new Array();
-				board[i][j]['atoms'] = [];
-				board[i][j]['animate'] = null;
-			}
-		}
-	}
-	
-	function createGrid( color ) {
-		for( var i = 0; i <= max_width; i+= box_size+1 ) 
-		{
-			layer_lines.add( new Kinetic.Line({
-				points: [i, 0, i, max_width],
-				stroke: color
-			}) );
-			layer_lines.add( new Kinetic.Line({
-				points: [0, i, max_width, i],
-				stroke: color
-			}) );	
-		}
-		
-		arena.add( layer_lines );
-		setClicks();
-	}
-	
 	function createClickableBase() {
 		// creates a rectangle for each box
 		var base = new Kinetic.Line({
@@ -107,153 +83,124 @@ function ChainReaction(_boxsize, _gridcount){
 		
 		layer_click.add( base );	
 	}
+
+	function createGrid( color ) {
+		for( var i = 0; i <= max_width; i+= box_size+1 ) 
+		{
+			layer_lines.add( new Kinetic.Line({
+				points: [i, 0, i, max_width],
+				stroke: color
+			}) );
+			layer_lines.add( new Kinetic.Line({
+				points: [0, i, max_width, i],
+				stroke: color
+			}) );	
+		}
+		
+		arena.add( layer_lines );
+		setClicks();
+	}
 	
 	function setClicks() {
 		arena.add( layer_click );	
 	}
 	
+	function setWinnersArray() {
+		for(var i=0; i<players; i++) {
+			wins[i] = 0;
+		}
+	}
+	
+	// one time run only
+	function createProgramBoard() {
+		for( var i=0; i<grid_count; i++ ) 
+		{
+			board[i] = new Array();
+			for( var j=0; j<grid_count; j++ ) 
+			{
+				board[i][j] = new Array();
+				board[i][j]['atoms'] = [];
+				board[i][j]['animate'] = null;
+				board[i][j]['player'] = null;
+			}
+		}
+	}
+	
+	
+	
 	this.placeMyAtom = function( x, y, callback ) {
-		var color = colors[ turns % players ];
+		var player = turns % players;
+		if(player == 0) rounds++;
+		var color = colors[ player ];
+
+		if(rounds > 1 && wins[player] == 0) {
+			if(typeof _this.skipChanceCallback == 'function') {
+				 _this.skipChanceCallback(player);
+			}
+			return false;
+		}
+
 		if( 
 			board[x][y]['atoms'].length == 0			// if box is empty
 		|| 
-			board[x][y]['atoms'][0].getFill() == color 	// if color is same
+			board[x][y]['player'] == player 			// if player is same
 		) {
-			addNewAtom( x, y, color );
-			if( callback == true && typeof _this.atomCallback == 'function')
-			{
-				_this.atomCallback( x, y, color );
-			}
-		}
-		else
-			return false;
-			
-		turns += 1;
-		
-		if( turns > players )
-		{
-			var loser = checkTheLoser();
-		}
-		
-		var color = colors[ turns % players ]; 
-		createGrid( color );
+			wins[player] += 1;
+			addNewAtom( x, y, color, player ).then(function(){
+				
+				turns += 1;
+				
+				var color = colors[ turns % players ]; 
+				createGrid( color );
 
+				if( callback == true && typeof _this.atomCallback == 'function')
+				{
+					_this.atomCallback( x, y, color );
+				}
+			});
+		}
+		else {
+			return false;
+		}
 		return true;
 	}
 	
 	function checkTheLoser() {
-	
-		for(var i=0; i<wins.length; i++) {
-			
+		return wins.indexOf(0);
+	}
+
+	function removeTheLoserIfPresent(player){
+		var loser = checkTheLoser();
+		if(rounds > 1 && loser >= 0 && losers.indexOf(loser) < 0){
+			losers.push(loser);
+
+			if(typeof _this.showLoserCallback == 'function'){
+				_this.showLoserCallback(loser);
+			}
+		}
+		checkIfWeHaveAWinner(player);
+	}
+
+	function checkIfWeHaveAWinner(player){
+		if(rounds > 1 && wins.reduce(function(a,b){ return a + b; }, 0) == wins[player]){
+			weHaveAWinner = player;
+			if( typeof _this.winnerCallback == 'function' ) {
+				_this.winnerCallback( weHaveAWinner );
+			}
 		}	
 	}
-	
-	function checkStability( x, y ) {
-		var stable_count = 0;
-		if( x > 0 ) 
-			stable_count++;
-		if( y > 0 )
-			stable_count++;
-		if( x < grid_count-1 )
-			stable_count++;
-		if( y < grid_count-1 )
-			stable_count++;
-		if( board[x][y]['atoms'].length == stable_count - 1 )
-			showUnStability( x, y );
-		else if( board[x][y]['atoms'].length == stable_count )
-			explodeAtoms( x, y );	
-	}
-	
-	function showUnStability( x, y ) {
-		board[x][y]['animate'] = new Kinetic.Animation( function( frame ) {
-			var scale = Math.sin( frame.time * 2 * Math.PI / 1500 ) + 0.05;
-			for( var i = 0; i < board[x][y]['atoms'].length; i++ )
-				board[x][y]['atoms'][i].scale( { x: scale, y: scale } );
-		}, layer_atoms );
+
+	function addNewAtom( x, y, color, player ) {
+
+		if( board[x][y]['player'] !== player ) {
+			var boardCount = board[x][y]['atoms'].length;
+			wins[board[x][y]['player']] -= boardCount;
+			wins[player] += boardCount;
+		}
+
+		removeTheLoserIfPresent(player);
+		if(rounds > 1 && weHaveAWinner) return;
 		
-		board[x][y]['animate'].start();	
-	}
-	
-	function explodeAtoms( x, y ) {
-		var atom_count = 0;
-		board[x][y]['animate'].stop();
-		if( x > 0 ) {
-			moveLeft( x, y , board[x][y]['atoms'][atom_count] );
-			atom_count++;
-		}
-		if( y > 0 ) {
-			moveUp( x, y, board[x][y]['atoms'][atom_count] );
-			atom_count++;
-		}
-		if( x < grid_count-1 ) {
-			moveRight( x, y, board[x][y]['atoms'][atom_count] );
-			atom_count++;
-		}
-		if( y < grid_count-1 ) {
-			moveDown( x, y, board[x][y]['atoms'][atom_count] );
-			atom_count++;
-		}
-		
-		board[x][y]['atoms'] = [];	
-	}
-	
-	function moveLeft( x, y, atom ) {
-		new Kinetic.Animation( function( frame ) {
-			var pos = box_size * ( frame.time / 500 );
-			var half = box_size / 2 ;
-			var posX = box_size * x + half + x;
-			if( pos > box_size ) {
-				this.stop();
-				atom.remove();
-				addNewAtom( x-1, y, atom.getFill() );
-			}
-			atom.setX( posX - pos );
-		}, layer_atoms ).start();
-	}
-	
-	function moveRight( x, y, atom ) {
-		new Kinetic.Animation( function( frame ) {
-			var pos = box_size * ( frame.time / 500 );
-			var half = box_size / 2 ;
-			var posX = box_size * x + half + x;
-			if( pos > box_size ) {
-				this.stop();
-				atom.remove();
-				addNewAtom( x+1, y, atom.getFill() );
-			}
-			atom.setX( posX + pos );
-		}, layer_atoms ).start();
-	}
-	
-	function moveDown( x, y, atom ) {
-		new Kinetic.Animation( function( frame ) {
-			var pos = box_size * ( frame.time / 500 );
-			var half = box_size / 2 ;
-			var posY = box_size * y + half + y;
-			if( pos > box_size ) {
-				this.stop();
-				atom.remove();
-				addNewAtom( x, y+1, atom.getFill() );
-			}
-			atom.setY( posY + pos );
-		}, layer_atoms ).start();
-	}
-	
-	function moveUp( x, y, atom ) {
-		new Kinetic.Animation( function( frame ) {
-			var pos = box_size * ( frame.time / 500 );
-			var half = box_size / 2 ;
-			var posY = box_size * y + half + y;
-			if( pos > box_size ) {
-				this.stop();
-				atom.remove();
-				addNewAtom( x, y-1, atom.getFill() );
-			}
-			atom.setY( posY - pos );
-		}, layer_atoms ).start();
-	}
-	
-	function addNewAtom( x, y, color ) {
 
 		switch( board[x][y]['atoms'].length ) {
 			case 0:
@@ -269,9 +216,10 @@ function ChainReaction(_boxsize, _gridcount){
 				addFourAtoms( x, y, color );
 				break;
 		}
-		checkStability( x, y );	
+		board[x][y]['player'] = player;
+		return checkStability( x, y, player );	
 	}
-	
+
 	/* below functions needs to be combined to form a single one */
 	function addSingleAtom( x, y, color ) {
 		var half = box_size / 2 ;
@@ -405,4 +353,167 @@ function ChainReaction(_boxsize, _gridcount){
 		for( var i=0; i < board[x][y]['atoms'].length; i++ ) 
 			board[x][y]['atoms'][i].remove();
 	}
+
+	function getStabilityCount( x, y ) {
+		var stable_count = 0;
+
+		if( x > 0 ) 
+			stable_count++;
+		if( y > 0 )
+			stable_count++;
+		if( x < grid_count-1 )
+			stable_count++;
+		if( y < grid_count-1 )
+			stable_count++;
+
+		return stable_count;
+	}
+
+	function showUnStability( x, y ) {
+		board[x][y]['animate'] = new Kinetic.Animation( function( frame ) {
+			var scale = Math.sin( frame.time * 2 * Math.PI / 1500 ) + 0.05;
+			for( var i = 0; i < board[x][y]['atoms'].length; i++ )
+				board[x][y]['atoms'][i].scale( { x: scale, y: scale } );
+		}, layer_atoms );
+		
+		board[x][y]['animate'].start();	
+	}
+	
+	function checkStability( x, y, player ) {
+		var stable_count = getStabilityCount( x, y );
+
+		if( board[x][y]['atoms'].length == stable_count - 1 ) {
+			showUnStability( x, y );
+		}
+		else if( board[x][y]['atoms'].length == stable_count ) {
+			return explodeAtoms( x, y, player );
+		}
+
+		return Promise.resolve();
+	}
+	
+	function explodeAtoms( x, y, player ) {
+		var atom_count = 0;
+		board[x][y]['animate'].stop();
+		var promises = [];
+
+		if( x > 0 ) {
+			promises.push(moveLeft( x, y, board[x][y]['atoms'][atom_count], player ));
+			atom_count++;
+		}
+		if( y > 0 ) {
+			promises.push(moveUp( x, y, board[x][y]['atoms'][atom_count], player ));
+			atom_count++;
+		}
+		if( x < grid_count-1 ) {
+			promises.push(moveRight( x, y, board[x][y]['atoms'][atom_count], player ));
+			atom_count++;
+		}
+		if( y < grid_count-1 ) {
+			promises.push(moveDown( x, y, board[x][y]['atoms'][atom_count], player ));
+			atom_count++;
+		}
+		
+		board[x][y]['atoms'] = [];
+		board[x][y]['player'] = null;
+
+		return new Promise(function(resolve){
+			Promise.all(promises).then(function(data){
+				var chain = Promise.resolve();
+
+				data.forEach(function(a){
+					chain = chain.then(addNewAtom( a.x, a.y, a.color, a.player ));
+				});
+
+				chain.then(resolve);
+			});
+		});
+	}
+	
+	/* below functions needs to be combined to form a single one */
+
+	function moveLeft( x, y, atom, player ) {
+		return new Promise(function(resolve){
+			new Kinetic.Animation( function( frame ) {
+				var pos = box_size * ( frame.time / 500 );
+				var half = box_size / 2 ;
+				var posX = box_size * x + half + x;
+				if( pos > box_size ) {
+					this.stop();
+					atom.remove();
+					resolve({
+						x: x-1, 
+						y: y, 
+						color: atom.getFill(), 
+						player: player 
+					});
+				}
+				atom.setX( posX - pos );
+			}, layer_atoms ).start();
+		});
+	}
+	
+	function moveRight( x, y, atom, player ) {
+		return new Promise(function(resolve){
+			new Kinetic.Animation( function( frame ) {
+				var pos = box_size * ( frame.time / 500 );
+				var half = box_size / 2 ;
+				var posX = box_size * x + half + x;
+				if( pos > box_size ) {
+					this.stop();
+					atom.remove();
+					resolve({
+						x: x+1, 
+						y: y, 
+						color: atom.getFill(), 
+						player: player 
+					});
+				}
+				atom.setX( posX + pos );
+			}, layer_atoms ).start();
+		});
+	}
+	
+	function moveDown( x, y, atom, player ) {
+		return new Promise(function(resolve){
+			new Kinetic.Animation( function( frame ) {
+				var pos = box_size * ( frame.time / 500 );
+				var half = box_size / 2 ;
+				var posY = box_size * y + half + y;
+				if( pos > box_size ) {
+					this.stop();
+					atom.remove();
+					resolve({
+						x: x, 
+						y: y+1, 
+						color: atom.getFill(), 
+						player: player 
+					});
+				}
+				atom.setY( posY + pos );
+			}, layer_atoms ).start();
+		});
+	}
+	
+	function moveUp( x, y, atom, player ) {
+		return new Promise(function(resolve){
+			new Kinetic.Animation( function( frame ) {
+				var pos = box_size * ( frame.time / 500 );
+				var half = box_size / 2 ;
+				var posY = box_size * y + half + y;
+				if( pos > box_size ) {
+					this.stop();
+					atom.remove();
+					resolve({
+						x: x, 
+						y: y-1, 
+						color: atom.getFill(), 
+						player: player 
+					});
+				}
+				atom.setY( posY - pos );
+			}, layer_atoms ).start();
+		});
+	}
+	
 };

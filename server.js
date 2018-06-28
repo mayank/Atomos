@@ -129,6 +129,39 @@ io.on('connection', function(socket){
 		playNextTurn(data.game);
 	});
 
+	socket.on('/game/pass', function(data){
+		_games[data.game].turns++;
+		playNextTurn(data.game);
+	});
+
+	socket.on('/game/winner', function(data){
+		console.log('/game/winner', JSON.stringify(data));
+
+		var game = _games[data.game];
+		var playerId = _games[data.game].players[data.player];
+		var winner = _sockets[_users[playerId].id].name;
+
+		game.players.forEach(function(player){
+			if( player !== playerId ) {
+				_users[player].emit('/status', { message: winner + ' won the Game!', time: 999999});
+			} else {
+				_users[player].emit('/status', { message: 'You won the Game!', time: 999999});
+			}
+		});
+
+		game.players.forEach(function(player){
+			_users[player].emit('/action', {action: 'game-ended'});
+		});
+	});
+
+	socket.on('/game/lose', function(data){
+		var playerId = _games[data.game].players[data.player];
+
+		console.log('/game/lose', JSON.stringify(data));
+		console.log('Player ', playerId, ' Lost!');
+		_users[playerId].emit('/status', {message: 'You are out of Game now!', time: 9999999});
+	});
+
 	function playNextTurn(id) {
 		var game = _games[id];
 		var player = game.players[game.turns % game.players.length];

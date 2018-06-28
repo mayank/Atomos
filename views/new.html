@@ -78,9 +78,24 @@
 			var cr = new ChainReaction(30,6);
 			var bizz = ['red','blue','green','yellow','pink','orange'];
 
+			cr.showLoserCallback = function(playerId){
+				cr.clickable = false;
+				socket.emit('/game/lose', {game:window.gameId, player: playerId});
+			};
+
 			cr.atomCallback = function(x,y){
 				socket.emit('/game/turn', {game:window.gameId, x:x, y:y});
 			};
+
+			cr.skipChanceCallback = function(playerId){
+				cr.clickable = false;
+				socket.emit('/game/pass', {game:window.gameId});
+			};
+
+			cr.winnerCallback = function(playerId){
+				socket.emit('/game/winner', {game:window.gameId, player: playerId});
+			}
+
 			socket.emit('/user/add', window.user);
 			socket.on('/status', function(data){
 				setStatus(data);
@@ -130,6 +145,10 @@
 
 					case 'move':
 						cr.placeMyAtom(data.x, data.y);
+					break;
+
+					case 'game-ended': 
+						$('#reload-page').removeClass('hide');
 					break;
 				}
 			});
@@ -224,6 +243,10 @@
 
 			<div class="text-center">
 				<div id="arena"></div>
+			</div>
+
+			<div id="reload-page" class="form hide">
+				<button onclick="window.location = window.location" class="btn btn-info btn-block">Go to Home</button>
 			</div>
 		</div>
 	</body>
