@@ -150,7 +150,12 @@
 					case 'game-ended': 
 						$('#reload-page').removeClass('hide');
 					break;
-
+					case 'mark-lost-boy':
+						var loserCheck = cr.amIALoser();
+						if(loserCheck && cr.clickable){
+							cr.skipChanceCallback(loserCheck);
+						}
+					break;
 					case 'pass':
 						cr.placeMyAtom(0, 0);
 					break;
