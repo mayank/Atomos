@@ -134,6 +134,10 @@ function ChainReaction(_boxsize, _gridcount){
 		}
 	}
 	
+	this.amIALoser = function(){
+		var player = turns % players;
+		return losers.indexOf(player) >= 0 ? player : false;
+	}
 	
 	
 	this.placeMyAtom = function( x, y, callback ) {
