@@ -64,6 +64,15 @@ function ChainReaction(_boxsize, _gridcount){
 		setWinnersArray();
 	};
 
+	function doThePlaceAtomThing(){
+		var pos = arena.getPointerPosition();
+		var x =  Math.floor( pos.x / (box_size + 1) );
+		var y =  Math.floor( pos.y / (box_size + 1) );
+
+		if( _this.clickable )
+			_this.placeMyAtom( x, y, true );
+	};
+
 	function createClickableBase() {
 		// creates a rectangle for each box
 		var base = new Kinetic.Line({
@@ -73,14 +82,13 @@ function ChainReaction(_boxsize, _gridcount){
 		});
 		
 		base.on('click', function(e){
-			var pos = arena.getPointerPosition();
-			var x =  Math.floor( pos.x / (box_size + 1) );
-			var y =  Math.floor( pos.y / (box_size + 1) );
-
-			if( _this.clickable )
-				_this.placeMyAtom( x, y, true );	// places an atom on board
+			doThePlaceAtomThing();
 		});
-		
+
+		base.on('tap', function(e){
+			doThePlaceAtomThing();
+		});
+
 		layer_click.add( base );	
 	}
 
