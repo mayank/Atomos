@@ -1,11 +1,20 @@
-var path = require('path');
-var express = require('express');
-var app = express();
-var http = require('http').Server(app);
-var io = require('socket.io')(http);
+var 
+	path 		= require('path'),
+	express 	= require('express'),
+
+	app 		= express(),
+	
+	http 		= require('http').Server(app),
+	io 			= require('socket.io')(http),
+
+	bunyan	    = require('bunyan'),
+	L 			= bunyan.createLogger({name: "chain-reaction", level: "debug"});
+
 
 app.use(express.static(path.join(__dirname, 'assets')));
+
 app.engine('.html', require('ejs').__express);
+
 app.set('views', __dirname + '/views');
 app.set('view engine', 'html');
 
@@ -14,7 +23,7 @@ app.get('/', function(req, res){
 });
 
 http.listen(process.env.PORT || 3000, function(){
-  console.log('server started');
+	L.info('Server', 'Started on PORT', process.env.PORT || 3000);
 });
 
 
@@ -24,7 +33,9 @@ var _games = {};
 var _sockets = {};
 
 var generateGameId = function(){
-	return Math.floor(1000 + Math.random() * 9000);
+	var gameId = Math.floor(1000 + Math.random() * 9000);
+	L.info('New Game #', gameId);
+	return gameId;
 };
 
 // when user connects to the game
@@ -35,17 +46,21 @@ io.on('connection', function(socket){
 
 	// adds a user
 	socket.on('/user/add', function(user) {
+
+		L.info('/user/add', user);
 		
 		_users[user.id] = socket;
 		_sockets[socket.id] = user;
 
 		socket.emit('/status',{ message: 'Welcome ! '+ user.name});
+
+		L.info('/user/add', 'you are added');
 		socket.emit('/action', {action:'user-added'});
-		console.log('Adding New User', JSON.stringify(user));
 	});
 
 
 	socket.on('/game/create', function(){
+
 		var userId = _sockets[socket.id].id;
 		var name = _sockets[socket.id].name;
 		var gameId = generateGameId();
@@ -55,15 +70,21 @@ io.on('connection', function(socket){
 			owner: userId,
 			players: [userId],
 			playerNames: [name],
+			losers: [],
 			turns: 0,
 			started: false
 		};
 
 		_games[gameId] = game;
 
-		console.log('Game Created with Id : '+ gameId);
+		socket.join(gameId);
+
 		socket.emit('/status', {message: 'Game created, Passcode : ' + gameId, time: 99999999});
+
+		L.debug('/game/create', 'Telling that Game is Created #', gameId);
 		socket.emit('/action', { action: 'game-created', gameId: gameId});
+
+		L.debug('/game/create', 'Pushing admin player in Player list', game);
 		socket.emit('/action', { action: 'player-added', players: game.playerNames});
 	});
 
@@ -71,18 +92,15 @@ io.on('connection', function(socket){
 		var game = _games[id];
 
 		_games[id].started = true;
-		console.log('Admin Started the Game! => ', id);
+		L.info('/game/start', 'Admin Started the Game #',id, _sockets[socket.id]);
 
-		game.players.forEach(function(playerId){
-			console.log('Notifying Game start to ', playerId);
-			_users[playerId].emit('/action', { action: 'game-started', count: game.players.length});
-		});
+		L.debug('/game/start', 'Notifying all Game started #', game);
+		io.in(id).emit('/action', { action: 'game-started', count: game.players.length});
 
 		playNextTurn(id);
 		
 	});
 
-	// join an existing game
 	socket.on('/game/join', function(id) {
 		var game = _games[id];
 		var userId = _sockets[socket.id].id;
@@ -90,7 +108,7 @@ io.on('connection', function(socket){
 
 		if(game){
 			if(game.started) {
-				console.log('Joining Existing Game');
+				L.error('/game/join', 'Player #', userId, ' Joining Game #', id, ' : Game already Started');
 				socket.emit('/status', {message: 'You cannot join a game that is already started'});
 			}
 			else {
@@ -99,16 +117,19 @@ io.on('connection', function(socket){
 
 				_games[id] = game;
 
-				console.log('Game Joined by User : '+ userId);
+				socket.join(id);
+				L.info('/game/join', 'Player #', userId, ' Joined Game', id);
+
 				socket.emit('/status', {message: 'You Joined, Waiting for Admin to start'});
+
+				L.debug('/game/join', 'Telling player #', userId, ' he is joined');
 				socket.emit('/action', {action: 'game-joined', gameId: id});
 
-				game.players.forEach(function(id){
-					_users[id].emit('/action', { action: 'player-added', players: game.playerNames});
-					if(game.owner == id){
-						_users[id].emit('/action', { action: 'enable-start'});
-					}
-				});	
+				L.debug('/game/join', 'Telling everyone player list updated', game);
+				io.in(id).emit('/action', { action: 'player-added', players: game.playerNames});
+
+				L.debug('/game/join', 'Player #', game.owner, ' can start the game');
+				_users[game.owner].emit('/action', { action: 'enable-start'});
 			}
 		} else {
 			console.log('Game DNE with Id : ', id);
@@ -117,123 +138,66 @@ io.on('connection', function(socket){
 	});
 
 	socket.on('/game/turn', function(data) {
+
 		_games[data.game].turns++;
 		var player = _sockets[socket.id].id;
 
-		_games[data.game].players.forEach(function(playerId){
-			if(player !== playerId){
-				_users[playerId].emit('/action', {action: 'move', x:data.x, y:data.y});		
-			}
-		});
-		
-		playNextTurn(data.game);
+		L.info('/game/turn', 'Player #', player, 'played its turn', data);
+		L.debug('/game/turn', 'Asking other players to move', _games[data.game]);
+		_users[player].in(data.game).broadcast.emit('/action', {action: 'move', x:data.x, y:data.y});
+
+		_games[data.game].moves = _games[data.game].players.length-1;
+		L.debug('/game/move/complete', 'Waiting Player to complete moves', _games[data.game].moves);
 	});
 
-	socket.on('/game/pass', function(data){
-		_games[data.game].turns++;
-
-		_games[data.game].players.forEach(function(playerId){
-			_users[playerId].emit('/action', {action: 'pass'});
-		});
-
-		playNextTurn(data.game);
+	socket.on('/game/move/complete', function(data){
+		_games[data.game].moves--;
+		L.info('/game/move/complete', 'Player #', data.player, 'Completed its move');
+		if(_games[data.game].moves == 0){
+			playNextTurn(data.game);
+		}
 	});
 
 	socket.on('/game/winner', function(data){
-		console.log('/game/winner', JSON.stringify(data));
+		L.info('/game/winner', 'Player won', data);
 
 		var game = _games[data.game];
 		var playerId = _games[data.game].players[data.player];
 		var winner = _sockets[_users[playerId].id].name;
 
-		game.players.forEach(function(player){
-			if( player !== playerId ) {
-				_users[player].emit('/status', { message: winner + ' won the Game!', time: 999999});
-			} else {
-				_users[player].emit('/status', { message: 'You won the Game!', time: 999999});
-			}
-		});
-
-		game.players.forEach(function(player){
-			_users[player].emit('/action', {action: 'game-ended'});
-		});
+		_users[playerId].on(data.game).broadcast.emit('/status', { message: winner + ' won the Game!', time: 999999});
+		_users[playerId].on(data.game).emit('/status', { message: 'You won the Game!', time: 999999});
+		io.on(data.game).emit('/action', {action: 'game-ended'});
 	});
 
 	socket.on('/game/lose', function(data){
 		var playerId = _games[data.game].players[data.player];
 
-		console.log('/game/lose', JSON.stringify(data));
-		console.log('Player ', playerId, ' Lost!');
+		if( _games[data.game].losers.indexOf(playerId) < 0 ) {
+			_games[data.game].losers.push(playerId);
+			L.debug('/game/lose', 'Loser created', _games[data.game]);
+		}
+
+		L.info('/game/lose', 'Player #', playerId, ' lost the game', _sockets[socket.id]);
 		_users[playerId].emit('/status', {message: 'You are out of Game now!', time: 9999999});
 	});
 
 	function playNextTurn(id) {
 		var game = _games[id];
 		var player = game.players[game.turns % game.players.length];
-		
+
+		L.info('[playNextTurn]', 'Its player #', player, ' turn');
 		_users[player].emit('/action', {action:'your-turn'});
 		_users[player].emit('/status',{ message: 'Its your turn !', time: 999999});
 
-		game.players.forEach(function(playerId){
-			if(player !== playerId){
-				_users[playerId].emit('/action', {action: 'wait-for-turn'});
-				_users[playerId].emit('/status', { message: 'Waiting for Player to Move', time: 999999});
-			}
-		});
-	}
+		L.info('[playNextTurn]', 'All players are waiting');
+		_users[player].in(id).broadcast.emit('/action', {action: 'wait-for-turn'});
+		_users[player].in(id).broadcast.emit('/status', { message: 'Waiting for Player to Move', time: 999999});
 
-	/*
-	// creates a new user 
-	var user = { 
-		id:socket.id, 
-		color: __colors[__players.length % __colors.length],
-		socket: socket
-	};
-
-
-	// limit of two players
-	if( __players.length < 2 )
-	{
-		__players.push(user);
-		socket.emit('console','You have joined as ' + user.color);
-		socket.broadcast.emit('console',user.color +' has joined !');
-
-		if( __players.length == 2 )
-		{
-			io.sockets.emit('console','Game has Started !');
-			io.sockets.emit('start-game', null);
-
-			playNextTurn();
+		if( _games[id].losers.indexOf(player) >= 0 ) {
+			L.info('[playNextTurn]', 'Player #', player, ' not allowed');
+			L.info('[playNextTurn]', 'Game State', _games[id]);
+			_users[player].emit('/action', {action:'pass'});
 		}
 	}
-
-	function playNextTurn() {
-		var player = __players[__turn%__players.length];
-		player.socket.emit('console', '<strong>Its your turn !</strong>');
-		player.socket.broadcast.emit('console', player.color + ' is thinking...');
-		player.socket.emit('unlock',null);
-	}
-
-	socket.on('turn', function(data){
-		socket.emit('console','You have played your turn');
-		socket.broadcast.emit('move',data);
-		__turn++;
-
-		playNextTurn();
-	});
-
-	socket.on('disconnect', function() {
-		var flag = 0;
-		for(var i=0;i<__players.length;i++)
-		{
-			if( __players[i].id == socket.id )
-			{
-				__players.splice(i,1);
-				flag = 1;
-			}
-		}
-		if( flag == 1 )
-			socket.broadcast.emit('console',user.color+' has left the game :(');
-	});
-	*/
 });

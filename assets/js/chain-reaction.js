@@ -47,7 +47,6 @@ function ChainReaction(_boxsize, _gridcount){
 
 	this.clickable = false;
 	this.atomCallback = null;
-	this.skipChanceCallback = null;
 	this.showLoserCallback = null;
 	this.winnerCallback = null;
 
@@ -70,7 +69,7 @@ function ChainReaction(_boxsize, _gridcount){
 		var y =  Math.floor( pos.y / (box_size + 1) );
 
 		if( _this.clickable )
-			_this.placeMyAtom( x, y, true );
+			_this.placeMyAtom( x, y );
 	};
 
 	function createClickableBase() {
@@ -140,15 +139,21 @@ function ChainReaction(_boxsize, _gridcount){
 	}
 	
 	
-	this.placeMyAtom = function( x, y, callback ) {
+	this.placeMyAtom = function( x, y ) {
 		var player = turns % players;
 		if(player == 0) rounds++;
 		var color = colors[ player ];
 
 		if(rounds > 1 && wins[player] == 0) {
-			if(typeof _this.skipChanceCallback == 'function') {
-				 _this.skipChanceCallback(player);
+			turns += 1;
+
+			var color = colors[ turns % players ]; 
+			createGrid( color );
+
+			if(typeof _this.atomCallback == 'function') {
+				 _this.atomCallback( 0, 0, color );
 			}
+
 			return false;
 		}
 
@@ -165,7 +170,7 @@ function ChainReaction(_boxsize, _gridcount){
 				var color = colors[ turns % players ]; 
 				createGrid( color );
 
-				if( callback == true && typeof _this.atomCallback == 'function')
+				if( typeof _this.atomCallback == 'function' )
 				{
 					_this.atomCallback( x, y, color );
 				}

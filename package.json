@@ -3,13 +3,14 @@
   "version": "0.0.1-8",
   "description": "a online game",
   "dependencies": {
-    "express": "4.4.5",
+    "bunyan": "^1.8.12",
     "ejs": "2.5.8",
+    "express": "4.4.5",
     "socket.io": "1.0.6"
   },
   "subdomain": "chain-reaction",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js | ./node_modules/bunyan/bin/bunyan"
   },
   "engines": {
     "node": "0.10.x"

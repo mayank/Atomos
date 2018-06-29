@@ -10,6 +10,7 @@
 	<script src="js/jquery.min.js"></script>
 	<script src="js/kinetic.js"></script>
 	<script src="js/chain-reaction.js"></script>
+	<script src="js/name-generator.js"></script>
 	<script src="/socket.io/socket.io.js"></script>
 
 	<script type="text/javascript">
@@ -35,7 +36,7 @@
 
 
 		$(document).ready(function(){
-			$('#login').click(function(){
+			$('#login').click(function(){/*
 				FB.getLoginStatus(function(data) {
 					if( data.status != 'connected' ) {
 						FB.login(function(user){
@@ -48,6 +49,8 @@
 						userLoggedIn();
 					}
 				});
+				*/
+				userLoggedIn();
 			});
 		});
 
@@ -65,12 +68,13 @@
 		}
 
 		function userLoggedIn(){
-			FB.api('/me', function(data){
-				window.user = data;
+			//FB.api('/me', function(data){
+			//	window.user = data;
+				window.user = getUser();
 				$('#login').remove();
 				$('#game-block').removeClass('hide');
 				init();
-			});
+			//});
 		}
 
 		function init(){
@@ -78,23 +82,20 @@
 			var cr = new ChainReaction(40,8);
 			var bizz = ['red','blue','green','yellow','pink','orange'];
 
-			cr.showLoserCallback = function(playerId){
-				cr.clickable = false;
-				var loserCheck = cr.amIALoser();
-				if(loserCheck){
-					cr.skipChanceCallback(loserCheck);
-				}
-				socket.emit('/game/lose', {game:window.gameId, player: playerId});
-			};
-
 			cr.atomCallback = function(x,y){
-				socket.emit('/game/turn', {game:window.gameId, x:x, y:y});
+				
+				if(cr.clickable){
+					console.log('I Placed an atom at ', x, y);
+					socket.emit('/game/turn', {game:window.gameId, x:x, y:y});	
+				} else {
+					console.log('Someone Placed at', x, y);
+					socket.emit('/game/move/complete', {game: window.gameId, player: window.user});
+				}
 			};
 
-			cr.skipChanceCallback = function(playerId){
-				cr.clickable = false;
-				socket.emit('/game/pass', {game:window.gameId});
-			};
+			cr.showLoserCallback = function(loser){
+				socket.emit('/game/lose', {game:window.gameId, player: loser});
+			}
 
 			cr.winnerCallback = function(playerId){
 				socket.emit('/game/winner', {game:window.gameId, player: playerId});
@@ -103,6 +104,10 @@
 			socket.emit('/user/add', window.user);
 			socket.on('/status', function(data){
 				setStatus(data);
+			});
+
+			$('#start-game').click(function(){
+				socket.emit('/game/start', window.gameId);
 			});
 		
 			socket.on('/action', function(data){
@@ -133,7 +138,6 @@
 
 					case 'enable-start':
 						$('#start-game-block').removeClass('hide');
-						startGame(socket);
 					break;
 
 					case 'game-started':
@@ -160,13 +164,8 @@
 			});
 		}
 
-		function yourTurn(cr) {
-			var loserCheck = cr.amIALoser();
-			if(loserCheck){
-				cr.skipChanceCallback(loserCheck);
-			} else {
-				cr.clickable = true;	
-			}
+		function yourTurn(cr, socket) {
+			cr.clickable = true;
 		}
 
 		function waitForTurn(cr){
@@ -178,12 +177,6 @@
 			var colors = bizz.slice(0, count);
 			cr.setColors(colors);
 			cr.loadGame();
-		}
-
-		function startGame(socket){
-			$('#start-game').click(function(){
-				socket.emit('/game/start', window.gameId);
-			});
 		}
 
 		function gameJoined(){
