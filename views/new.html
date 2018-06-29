@@ -67,13 +67,12 @@
 		}
 
 		function userLoggedIn(){
-			//FB.api('/me', function(data){
-			//	window.user = data;
-				window.user = getUser();
+			FB.api('/me', function(data){
+				window.user = data;
 				$('#login').remove();
 				$('#game-block').removeClass('hide');
 				init();
-			//});
+			});
 		}
 
 		function init(){
