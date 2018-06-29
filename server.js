@@ -165,9 +165,9 @@ io.on('connection', function(socket){
 		var playerId = _games[data.game].players[data.player];
 		var winner = _sockets[_users[playerId].id].name;
 
-		_users[playerId].on(data.game).broadcast.emit('/status', { message: winner + ' won the Game!', time: 999999});
-		_users[playerId].on(data.game).emit('/status', { message: 'You won the Game!', time: 999999});
-		io.on(data.game).emit('/action', {action: 'game-ended'});
+		_users[playerId].in(data.game).broadcast.emit('/status', { message: winner + ' won the Game!', time: 999999});
+		_users[playerId].in(data.game).emit('/status', { message: 'You won the Game!', time: 999999});
+		io.in(data.game).emit('/action', {action: 'game-ended'});
 	});
 
 	socket.on('/game/lose', function(data){
