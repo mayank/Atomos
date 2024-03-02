@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: Atomos
+  annotations:
+    github.com/project-slug: mayank/Atomos
+spec:
+  type: other
+  lifecycle: unknown
+  owner: team
